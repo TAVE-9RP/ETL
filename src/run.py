@@ -25,8 +25,10 @@ def run():
     raw_key = get_latest_raw_file()
     print(f"Using raw file: {raw_key}")
 
-    # 2. CSV 로드 (s3fs가 내부적으로 사용됨)
-    df = pd.read_csv(f"s3://{S3_BUCKET}/{raw_key}")
+    # 2. boto3를 사용하여 S3 오브젝트를 직접 가져옴
+    response = s3_client.get_object(Bucket=S3_BUCKET, Key=raw_key)
+    # response['Body']를 pandas에 직접 전달합니다.
+    df = pd.read_csv(response['Body'])
 
     # 3. 회사별 KPI 계산
     kpi_results = calculate_item_kpi_by_company(df)
