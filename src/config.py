@@ -10,7 +10,7 @@ except ImportError:
 
 S3_BUCKET = os.getenv("S3_BUCKET")
 AWS_REGION = os.getenv("AWS_REGION", "ap_southeast-2")
-RAW_PREFIX = os.getenv("RAW_PREFIX", "raw/")
+RAW_PREFIX = os.getenv("RAW_PREFIX", "exports/daily/")
 KPI_PREFIX = os.getenv("KPI_PREFIX", "kpi")
 
 if not S3_BUCKET:
