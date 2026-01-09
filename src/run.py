@@ -8,7 +8,7 @@ from shipment_lead_time import calculate_shipment_lead_time
 from shipping_completion_rate import calculate_shipping_completion_rate
 from project_completion_kpi import calculate_project_completion_rate
 from long_term_task_rate_kpi import calculate_long_term_task_rate, calculate_leadtimes
-from calculate_inventory_turnonver import calculate_inventory_turnover
+from inventory_turnover import calculate_inventory_turnover
 from config import S3_BUCKET, RAW_PREFIX, KPI_PREFIX, AWS_REGION
 
 s3_client = boto3.client("s3", region_name=AWS_REGION)
@@ -114,7 +114,7 @@ def run():
     log_comp_results = calculate_shipping_completion_rate(df_project, df_logistics, df_prev_logistics, target_month_str)
     proj_comp_results = calculate_project_completion_rate(df_project, df_prev_project, target_month_str)
     long_term_results = calculate_long_term_task_rate(df_project, df_logistics, df_inventory, hist_logs, hist_invs, target_month_str)
-    turn_over_results = calculate_inventory_turnover(df_first_dict, df_last_dict, target_month_str)
+    turn_over_results = calculate_inventory_turnover(df_first_dict, df_last_dict)
 
     # 4. 데이터 병합
     combined_kpis = {}
