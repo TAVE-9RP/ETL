@@ -142,7 +142,14 @@ def run():
     # 업무 장기 처리율 병합
     for item in long_term_results:
         cid = item["company_id"]
-        combined_kpis.setdefault(cid, {})["long_term_task_rate"] = item["long_term_task_rate"]
+        target = combined_kpis.setdefault(cid, {})
+        target["long_term_task_rate"] = item["long_term_task_rate"]
+        target["total_task_count"] = item["total_task_count"]
+        target["logistics_task_count"] = item["logistics_task_count"]
+        target["inventory_task_count"] = item["inventory_task_count"]
+        target["total_delayed_count"] = item["total_delayed_count"]
+        target["logistics_delayed_count"] = item["logistics_delayed_count"]
+        target["inventory_delayed_count"] = item["inventory_delayed_count"]
 
     # 재고 회전율 병합
     for item in turn_over_results:
@@ -164,6 +171,12 @@ def run():
                 "shippingCompletionRate": float(metrics.get("shipping_completion_rate", 0.0)),
                 "projectCompletionRate": float(metrics.get("project_completion_rate", 0.0)),
                 "longTermTaskRate": float(metrics.get("long_term_task_rate", 0.0)),
+                "totalTaskCount": int(metrics.get("total_task_count", 0)),
+                "logisticsTaskCount": int(metrics.get("logistics_task_count", 0)),
+                "inventoryTaskCount": int(metrics.get("inventory_task_count", 0)),
+                "totalDelayedCount": int(metrics.get("total_delayed_count", 0)),
+                "logisticsDelayedCount": int(metrics.get("logistics_delayed_count", 0)),
+                "inventoryDelayedCount": int(metrics.get("inventory_delayed_count", 0)),
                 "turnOverRate": float(metrics.get("inventory_turnover", 0.0))
             },
             "calculatedAt": now_kst.isoformat()

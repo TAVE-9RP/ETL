@@ -89,14 +89,26 @@ def calculate_long_term_task_rate(df_project: pd.DataFrame, df_log: pd.DataFrame
         c_log = cur_log[cur_log["company_id"] == cid]
         c_inv = cur_inv[cur_inv["company_id"] == cid]
 
+        # 세부 개수 산출
+        log_count = len(c_log)
+        inv_count = len(c_inv)
         total_tasks = len(c_log) + len(c_inv)
-        over_tasks = c_log["is_over"].sum() + c_inv["is_over"].sum()
 
-        rate = (over_tasks / total_tasks * 100) if total_tasks > 0 else 0.0
+        log_over = c_log["is_over"].sum()
+        inv_over = c_inv["is_over"].sum()
+        total_over = log_over + inv_over
+
+        rate = (total_over / total_tasks * 100) if total_tasks > 0 else 0.0
 
         results.append({
             "company_id": cid,
-            "long_term_task_rate": round(float(rate), 3)
+            "long_term_task_rate": round(float(rate), 3),
+            "total_task_count": int(total_tasks),
+            "logistics_task_count": int(log_count),
+            "inventory_task_count": int(inv_count),
+            "total_delayed_count": int(total_over),
+            "logistics_delayed_count": int(log_over),
+            "inventory_delayed_count": int(inv_over)
         })
 
     return results
