@@ -7,8 +7,11 @@ from safety_stock_kpi import calculate_safety_stock_rate
 from shipment_lead_time import calculate_shipment_lead_time
 from shipping_completion_rate import calculate_shipping_completion_rate
 from project_completion_kpi import calculate_project_completion_rate
-from long_term_task_rate_kpi import calculate_long_term_task_rate, calculate_leadtimes
+from long_term_task_rate_kpi import calculate_long_term_task_rate, calculate_leadtimes, build_hist_leadtimes_like_v1
 from inventory_turnover import calculate_inventory_turnover
+from predict_shipment_lead_time import forecast_lead_time_xgb
+from predict_inventory_turnover import forecast_inventory_turnover_hybrid
+
 from config import S3_BUCKET, RAW_PREFIX, KPI_PREFIX, AWS_REGION
 
 s3_client = boto3.client("s3", region_name=AWS_REGION)
@@ -34,6 +37,17 @@ def get_csv_by_date(table_name, target_date_str):
         return pd.read_csv(response['Body'])
     except s3_client.exceptions.NoSuchKey:
         print(f"[Error] File not found: {file_key}")
+        return pd.DataFrame()
+
+def get_static_csv(file_name):
+    """날짜 접미사 없이 고정된 이름의 CSV 로드"""
+    file_key = f"{RAW_PREFIX}{file_name}.csv" # 접미사 제거
+    try:
+        print(f"[Loading Static] {file_key}")
+        response = s3_client.get_object(Bucket=S3_BUCKET, Key=file_key)
+        return pd.read_csv(response['Body'])
+    except Exception as e:
+        print(f"[Error] Static file not found: {file_key}, {e}")
         return pd.DataFrame()
 def run():
     kst_timezone = timezone(timedelta(hours=9))
@@ -88,20 +102,25 @@ def run():
         'item': df_item
     }
 
+    # 예측용 Mock 데이터 로드
+    df_leadtime_mock = get_static_csv("predict_leadtime_mock")
+    df_turnover_mock = get_static_csv("predict_turnover_mock")
+
     # 과거 3개월 데이터 로드 (업무 장기 처리율 SLA 계산용)
     hist_logs, hist_invs = [], []
     for i in range(1, 4):
         hist_date_str = get_last_day_of_month(target_date, i).strftime("%Y-%m-%d")
-        hist_month_str = get_last_day_of_month(target_date, i).strftime("%Y-%m")
 
         h_proj = get_csv_by_date("project", hist_date_str)
         h_log = get_csv_by_date("logistics", hist_date_str)
         h_inv = get_csv_by_date("inventory", hist_date_str)
 
-        if not h_log.empty:
-            hist_logs.append(calculate_leadtimes(h_proj, h_log, "logistics", hist_month_str))
-        if not h_inv.empty:
-            hist_invs.append(calculate_leadtimes(h_proj, h_inv,"inventory", hist_month_str))
+        if not h_log.empty and not h_inv.empty:
+            h_log_processed, h_inv_processed = build_hist_leadtimes_like_v1(h_proj, h_log, h_inv)
+
+        # 가공된(필터링 완료된) 리드타임 데이터프레임을 리스트에 추가
+        hist_logs.append(h_log_processed)
+        hist_invs.append(h_inv_processed)
     # [디버깅 추가] 데이터 로드 확인
     print(f"로드 결과: item({len(df_item)}건), project({len(df_project)}건), logistics({len(df_logistics)}건), logistics_item({len(df_logistics_item)}건)")
 
@@ -115,7 +134,8 @@ def run():
     proj_comp_results = calculate_project_completion_rate(df_project, df_prev_project, target_month_str)
     long_term_results = calculate_long_term_task_rate(df_project, df_logistics, df_inventory, hist_logs, hist_invs, target_month_str)
     turn_over_results = calculate_inventory_turnover(df_first_dict, df_last_dict)
-
+    pred_lead_time_results = forecast_lead_time_xgb(df_leadtime_mock)
+    pred_turnover_results = forecast_inventory_turnover_hybrid(df_turnover_mock)
     # 4. 데이터 병합
     combined_kpis = {}
 
@@ -158,6 +178,16 @@ def run():
 
     print(f"분석 완료: 총 {len(combined_kpis)}개 회사의 통합 KPI가 산출되었습니다.")
 
+    # 리드타임 예측치 병합
+    for item in pred_lead_time_results:
+        cid = item["company_id"]
+        combined_kpis.setdefault(cid, {})["pred_shipment_lead_time"] = item["pred_shipment_lead_time"]
+
+    # 재고회전율 예측치 병합
+    for item in pred_turnover_results:
+        cid = int(item["company_id"])
+        combined_kpis.setdefault(cid, {})["pred_inventory_turnover"] = item["pred_inventory_turnover"]
+
     # 5. 결과 S3 저장 (JSON 적재)
     for company_id, metrics in combined_kpis.items():
         if pd.isna(company_id): continue
@@ -177,7 +207,9 @@ def run():
                 "totalDelayedCount": int(metrics.get("total_delayed_count", 0)),
                 "logisticsDelayedCount": int(metrics.get("logistics_delayed_count", 0)),
                 "inventoryDelayedCount": int(metrics.get("inventory_delayed_count", 0)),
-                "turnOverRate": float(metrics.get("inventory_turnover", 0.0))
+                "turnOverRate": float(metrics.get("inventory_turnover", 0.0)),
+                "predShipmentLeadTime": float(metrics.get("pred_shipment_lead_time", 0.0)),
+                "predTurnOverRate": float(metrics.get("pred_inventory_turnover", 0.0))
             },
             "calculatedAt": now_kst.isoformat()
         }

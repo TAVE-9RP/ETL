@@ -1,5 +1,8 @@
 pandas
-numpy
+numpy<2.0.0
 boto3
 s3fs
 python-dotenv
+xgboost
+scikit-learn
+statsmodels
