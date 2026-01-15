@@ -1,3 +1,13 @@
+# 가상환경
+venv/
+ENV/
+env/
+
+# 파이썬 캐시 (컴파일된 파일들)
+**/__pycache__/
+*.py[cod]
+
+# 환경 변수 파일
 .env
 
 ### IntelliJ IDEA ###
